@@ -15,6 +15,8 @@ var xtend = require('xtend');
 var inherits = require('inherits');
 var Transform = require('readable-stream').Transform;
 
+var bPragma = require('browserify-pragma');
+
 module.exports = Deps;
 inherits(Deps, Transform);
 
@@ -347,16 +349,32 @@ Deps.prototype.walk = function (id, parent, cb) {
         
         var c = self.cache && self.cache[file];
         if (c) return fromDeps(file, c.source, c.package, Object.keys(c.deps));
-        
-        self.readFile(file, id, pkg)
-            .pipe(self.getTransforms(file, pkg, {
-                builtin: has(parent.modules, id)
-            }))
-            .pipe(concat(function (body) {
-                fromSource(body.toString('utf8'));
-            }))
-        ;
-        
+
+        /**
+         * Pipe source to appropriate streams depending on pragma detection.
+         */
+        function pipeSource (hasPragma) {
+            // Omit transforms if pragma is present.
+            if (!hasPragma) {
+                source = source
+                    .pipe(self.getTransforms(file, pkg, {
+                        builtin: has(parent.modules, id)
+                    }));
+            }
+
+            source
+                .pipe(concat(function (body) {
+                    fromSource(body.toString('utf8'));
+                }));
+        }
+        // pipeSource
+
+        // Pipe source to a pragma detector stream.
+        var source = self.readFile(file, id, pkg).pipe(bPragma({
+            rec: rec,
+            done: pipeSource,
+        }).detector());
+
         function fromSource (src) {
             var deps = rec.noparse ? [] : self.parseDeps(file, src);
             if (deps) fromDeps(file, src, pkg, deps);

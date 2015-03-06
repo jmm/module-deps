@@ -353,9 +353,10 @@ Deps.prototype.walk = function (id, parent, cb) {
         /**
          * Pipe source to appropriate streams depending on pragma detection.
          */
-        function pipeSource (hasPragma) {
+        function pipeSource (pragma) {
+            if (pragma.present) rec.noparse = pragma.present;
             // Omit transforms if pragma is present.
-            if (!hasPragma) {
+            else {
                 source = source
                     .pipe(self.getTransforms(file, pkg, {
                         builtin: has(parent.modules, id)
@@ -371,7 +372,6 @@ Deps.prototype.walk = function (id, parent, cb) {
 
         // Pipe source to a pragma detector stream.
         var source = self.readFile(file, id, pkg).pipe(bPragma({
-            rec: rec,
             done: pipeSource,
         }).detector());
 
